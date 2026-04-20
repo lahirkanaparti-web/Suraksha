@@ -148,4 +148,19 @@ class ApiService {
       return false;
     }
   }
+
+  /// Send the FCM registration token to Django for targeted push notifications
+  static Future<bool> registerFCMToken(String fcmToken) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/users/register-fcm/"), 
+        headers: headers,
+        body: jsonEncode({"fcmToken": fcmToken})
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint("Register FCM Error: $e");
+      return false;
+    }
+  }
 }

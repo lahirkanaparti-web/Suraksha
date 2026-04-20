@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import '../services/api_service.dart';
 
 class AppStateProvider extends ChangeNotifier {
@@ -16,14 +17,19 @@ class AppStateProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // If hot restarted, memory is wiped but Firebase persists. 
-      // Silently re-exchange token with Django before fetching.
+      // If hot restarted/token expired, re-authenticate
       if (!ApiService.isAuthenticated) {
         final user = FirebaseAuth.instance.currentUser;
         if (user != null) {
           final token = await user.getIdToken();
           if (token != null) {
             await ApiService.login(token);
+            
+            // Immediately register the current device's FCM token with Django
+            final fcmToken = await FirebaseMessaging.instance.getToken();
+            if (fcmToken != null) {
+              await ApiService.registerFCMToken(fcmToken);
+            }
           }
         }
       }

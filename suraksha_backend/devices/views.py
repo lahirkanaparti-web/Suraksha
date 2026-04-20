@@ -1,13 +1,21 @@
 from rest_framework import generics, status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.core.mail import send_mail
+from django.utils import timezone
 from .models import Device, DeviceAccess, UnlockOTP
+from alerts.models import Alert
+from users.models import UserFCMToken
+from core.utils import add_timestamp_to_image
 from .serializers import DeviceSerializer, DeviceDetailSerializer
 import random
+import io
+from django.core.files.base import ContentFile
+from firebase_admin import messaging
+import firebase_admin
 
 class DeviceListView(generics.ListCreateAPIView):
     serializer_class = DeviceSerializer
@@ -33,6 +41,89 @@ class DeviceDetailView(generics.RetrieveAPIView):
         return Device.objects.filter(
             Q(owner=user) | Q(access_logs__identity=user)
         ).distinct()
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def device_ping(request):
+    """
+    Unified endpoint for ESP32: Heartbeat + Alert Ingestion.
+    Expects X-Device-Token in headers.
+    """
+    token = request.headers.get('X-Device-Token')
+    if not token:
+        return Response({'detail': 'Device token required.'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+    device = get_object_or_404(Device, security_token=token)
+    
+    # Update Heartbeat
+    device.last_seen = timezone.now()
+    device.status = "online"
+    device.save()
+    
+    # Handle Image Upload (Alert)
+    if 'image' in request.FILES:
+        # 1. Anti-Spam (30s Cooldown)
+        last_alert = Alert.objects.filter(device=device).order_by('-created_at').first()
+        if last_alert and (timezone.now() - last_alert.created_at).total_seconds() < 30:
+            return Response({'detail': 'Alert ignored due to cooldown.'}, status=status.HTTP_200_OK)
+            
+        uploaded_image = request.FILES['image']
+        
+        # 2. Add Timestamp
+        processed_img = add_timestamp_to_image(uploaded_image)
+        
+        # Save processed image to a buffer
+        buffer = io.BytesIO()
+        processed_img.save(buffer, format='JPEG', quality=85)
+        image_content = ContentFile(buffer.getvalue(), name=f"alert_{device.device_id}_{int(timezone.now().timestamp())}.jpg")
+        
+        # 3. Create Alert
+        alert = Alert.objects.create(
+            device=device,
+            title="Motion Detected",
+            severity="critical",
+            message=f"PIR Sensor triggered at {device.name}",
+            snapshot=image_content
+        )
+        
+        # 4. Trigger Targeted FCM Notifications
+        send_targeted_notifications(device, alert)
+        
+        return Response({'detail': 'Alert recorded and notifications sent.'}, status=status.HTTP_201_CREATED)
+
+    return Response({'detail': 'Heartbeat received.'}, status=status.HTTP_200_OK)
+
+def send_targeted_notifications(device, alert):
+    """
+    Sends FCM notifications to all tokens associated with the owner and managers.
+    """
+    # Fetch all relevant users (Owner + Shared users)
+    recipient_users = [device.owner]
+    access_logs = DeviceAccess.objects.filter(device=device)
+    for access in access_logs:
+        recipient_users.append(access.identity)
+        
+    # Fetch FCM Tokens
+    tokens = list(UserFCMToken.objects.filter(user__in=recipient_users).values_list('token', flat=True))
+    
+    if tokens and firebase_admin._apps:
+        try:
+            # Construct and send Multicast message
+            message = messaging.MulticastMessage(
+                notification=messaging.Notification(
+                    title=f"🚨 SECURITY ALERT: {alert.title}",
+                    body=f"Detected at {device.name}",
+                ),
+                tokens=tokens,
+                data={
+                    'alert_id': str(alert.id),
+                    'device_id': device.device_id,
+                }
+            )
+            response = messaging.send_multicast(message)
+            print(f"Successfully sent {response.success_count} notifications.")
+        except Exception as e:
+            print(f"Failed to send targeted notifications: {e}")
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])

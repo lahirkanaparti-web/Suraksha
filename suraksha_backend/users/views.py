@@ -1,10 +1,11 @@
 import jwt
 from django.contrib.auth.models import User
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.authtoken.models import Token
+from .models import UserFCMToken
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -44,3 +45,20 @@ def firebase_login(request):
 
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def register_fcm_token(request):
+    """
+    Saves or updates the FCM token for the authenticated user.
+    """
+    fcm_token = request.data.get('fcmToken')
+    if not fcm_token:
+        return Response({"error": "No fcmToken provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+    UserFCMToken.objects.update_or_create(
+        token=fcm_token,
+        defaults={'user': request.user}
+    )
+
+    return Response({"message": "FCM token registered successfully"}, status=status.HTTP_200_OK)

@@ -13,7 +13,17 @@ class Device(models.Model):
         default="offline"
     )
 
+    # Security & Tracking
+    security_token = models.CharField(max_length=64, unique=True, null=True, blank=True)
+    last_seen = models.DateTimeField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if not self.security_token:
+            import secrets
+            self.security_token = secrets.token_hex(16) # 32 chars
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
