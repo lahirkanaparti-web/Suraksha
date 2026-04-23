@@ -25,6 +25,7 @@ urlpatterns = [
     path("api/", include("users.urls")),
     path("api/devices/", include("devices.urls")),
     path("api/alerts/", include("alerts.urls")),
+    path("api/events/", include("events.urls")),
 ]
 
 if settings.DEBUG:

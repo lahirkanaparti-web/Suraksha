@@ -28,7 +28,12 @@ DEBUG = True
 ALLOWED_HOSTS = [
     "127.0.0.1",
     "localhost",
-    "10.0.2.2"
+    "10.0.2.2",
+    "shelf-shirt-angelic.ngrok-free.dev"
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://shelf-shirt-angelic.ngrok-free.dev"
 ]
 
 # Application definition

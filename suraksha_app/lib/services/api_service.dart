@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 
 class ApiService {
   // Use 10.0.2.2 for Android Emulator, localhost for iOS/Web
-  static const String baseUrl = "http://10.0.2.2:8000/api";
+  static const String baseUrl = "https://shelf-shirt-angelic.ngrok-free.dev/api";
   
   // Store the Django REST Token in memory for session
   static String? _authToken;
@@ -161,6 +161,24 @@ class ApiService {
     } catch (e) {
       debugPrint("Register FCM Error: $e");
       return false;
+    }
+  }
+
+  /// Fetch the history of door access events
+  static Future<List<Map<String, dynamic>>> fetchAccessLogs() async {
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/events/access-logs/"),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      debugPrint("Error fetching access logs: $e");
+      return [];
     }
   }
 }

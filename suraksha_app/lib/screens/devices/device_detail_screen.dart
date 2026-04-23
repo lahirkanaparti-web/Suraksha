@@ -25,7 +25,7 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
   }
 
   Future<void> _fetchData() async {
-    setState(() => _isLoading = true);
+    if (mounted) setState(() => _isLoading = true);
     final data = await ApiService.fetchDeviceDetails(widget.initialDevice['id']);
     if (mounted) {
       setState(() {
@@ -42,24 +42,31 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
     return Card(
       color: const Color(0xFF1E1E24),
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: Colors.white.withOpacity(0.05))),
       child: ExpansionTile(
-        title: const Text("Info", style: TextStyle(fontWeight: FontWeight.bold)),
-        leading: const Icon(Icons.info_outline, color: Colors.blueAccent),
+        title: const Text("Ownership Information", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+        leading: const Icon(Icons.verified_user_rounded, color: Color(0xFF00E5FF)),
         children: [
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(20.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _infoRow("Device ID", _deviceData!['device_id'] ?? "-"),
-                _infoRow("Owner", "${owner['first_name']} ${owner['last_name']} (${owner['email']})"),
+                _infoRow("Hardware ID", _deviceData!['device_id'] ?? "-"),
+                _infoRow("Primary Owner", "${owner['first_name']} ${owner['last_name']} (${owner['email']})"),
+                const Divider(color: Colors.white12, height: 32),
+                const Text("Authorized Managers", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white70, fontSize: 13)),
                 const SizedBox(height: 8),
-                const Text("Managers:", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white70)),
-                if (managers.isEmpty) const Text("No managers assigned", style: TextStyle(color: Colors.white54)),
+                if (managers.isEmpty) const Text("No guest managers assigned", style: TextStyle(color: Colors.white30, fontSize: 12)),
                 ...managers.map((m) => Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Text("- ${m['first_name']} ${m['last_name']} (${m['email']})", style: const TextStyle(color: Colors.white70)),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.person_pin_rounded, size: 14, color: Colors.white38),
+                      const SizedBox(width: 8),
+                      Text("${m['first_name']} ${m['last_name']}", style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                    ],
+                  ),
                 )).toList()
               ],
             ),
@@ -70,17 +77,14 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
   }
 
   Widget _infoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: RichText(
-        text: TextSpan(
-          text: "$label: ",
-          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white70),
-          children: [
-            TextSpan(text: value, style: const TextStyle(fontWeight: FontWeight.normal, color: Colors.white))
-          ]
-        ),
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label.toUpperCase(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white38, letterSpacing: 1.1)),
+        const SizedBox(height: 4),
+        Text(value, style: const TextStyle(fontSize: 14, color: Colors.white70)),
+        const SizedBox(height: 12),
+      ],
     );
   }
 
@@ -94,23 +98,47 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
     return Card(
       color: const Color(0xFF1E1E24),
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: Colors.white.withOpacity(0.05))),
       child: ExpansionTile(
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
         leading: Icon(icon, color: color),
         children: [
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: cam.isNotEmpty 
-              ? Container(
-                  height: 200,
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.circular(12)
-                  ),
-                  child: Center(child: Text("Streaming from:\n${cam['stream_url']}", textAlign: TextAlign.center, style: const TextStyle(color: Colors.white38))),
+              ? Column(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        height: 220,
+                        width: double.infinity,
+                        color: Colors.black,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            const Center(child: Icon(Icons.videocam_off_outlined, color: Colors.white10, size: 48)),
+                            Positioned(
+                              bottom: 12,
+                              left: 12,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(4)),
+                                child: const Text("LIVE SIMULATION", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+                              ),
+                            )
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text("Endpoint: ${cam['stream_url']}", style: const TextStyle(fontSize: 11, color: Colors.white30, fontFamily: 'monospace')),
+                  ],
                 )
-              : const Text("Not Configured", style: TextStyle(color: Colors.white54)),
+              : const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Text("Camera configuration missing", style: TextStyle(color: Colors.white24)),
+                ),
           )
         ],
       ),
@@ -124,26 +152,27 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
     return Card(
       color: const Color(0xFF1E1E24),
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: Colors.greenAccent.withOpacity(0.2))),
       child: ExpansionTile(
-        title: const Text("Open Device", style: TextStyle(fontWeight: FontWeight.bold)),
-        leading: const Icon(Icons.lock_open, color: Colors.greenAccent),
+        title: const Text("Remote Override", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+        leading: const Icon(Icons.key_rounded, color: Colors.greenAccent),
         children: [
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(20.0),
             child: !hasAccess 
-              ? const Text("Access Denied: You do not have permission to physically alter this system.", style: TextStyle(color: Colors.redAccent))
+              ? const Text("Permission Denied: Only Owners and Users can trigger remote overrides.", style: TextStyle(color: Colors.white38, fontSize: 13))
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (!_codeSent) ...[
-                      const Text("Executing an override requires an OTP validation.", style: TextStyle(color: Colors.white70)),
-                      const SizedBox(height: 16),
+                      const Text("To unlock this locker remotely, you must first request a temporary 6-digit passcode.", style: TextStyle(color: Colors.white60, fontSize: 13)),
+                      const SizedBox(height: 20),
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).primaryColor, 
+                          backgroundColor: Colors.greenAccent, 
                           foregroundColor: Colors.black,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
                         ),
                         onPressed: _requestingOtp ? null : () async {
                           setState(() => _requestingOtp = true);
@@ -152,29 +181,34 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
                             setState(() { _requestingOtp = false; _codeSent = true; });
                           } else {
                             setState(() => _requestingOtp = false);
-                            if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to request OTP.")));
+                            if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to request OTP. Check backend logs.")));
                           }
                         },
-                        child: _requestingOtp ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.black)) : const Text("Request Passcode"),
+                        child: _requestingOtp ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2)) : const Text("REQUEST PASSCODE", style: TextStyle(fontWeight: FontWeight.bold)),
                       )
                     ] else ...[
+                      const Text("Passcode sent to your authorized endpoint.", style: TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 12),
                       TextField(
                         keyboardType: TextInputType.number,
                         maxLength: 6,
+                        style: const TextStyle(fontSize: 24, letterSpacing: 8, fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
                         onChanged: (val) => _otp = val,
                         decoration: InputDecoration(
-                          labelText: "Enter 6-Digit OTP",
+                          hintText: "000000",
                           filled: true,
-                          fillColor: Colors.black12,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          fillColor: Colors.black26,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 20),
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.greenAccent, 
+                          backgroundColor: Colors.white, 
                           foregroundColor: Colors.black,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
                         ),
                         onPressed: _requestingOtp ? null : () async {
                           if (_otp.length != 6) return;
@@ -183,12 +217,12 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
                           setState(() => _requestingOtp = false);
                           if (success) {
                             setState(() { _codeSent = false; _otp = ""; });
-                            if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ System Unlocked successfully!"), backgroundColor: Colors.green));
+                            if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ System Unlocked!"), backgroundColor: Colors.green));
                           } else {
-                            if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Invalid or expired OTP.")));
+                            if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Invalid Passcode")));
                           }
                         },
-                        child: _requestingOtp ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.black)) : const Text("Execute Override"),
+                        child: _requestingOtp ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2)) : const Text("EXECUTE UNLOCK", style: TextStyle(fontWeight: FontWeight.bold)),
                       )
                     ]
                   ],
@@ -199,39 +233,76 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
     );
   }
 
+  Widget _buildDoorLogsCard() {
+    final logs = _deviceData!['door_logs'] as List<dynamic>? ?? [];
+
+    return Card(
+      color: const Color(0xFF1E1E24),
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: Colors.white.withOpacity(0.05))),
+      child: ExpansionTile(
+        title: const Text("Face Recognition History", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+        leading: const Icon(Icons.face_retouching_natural_rounded, color: Colors.blueAccent),
+        children: [
+          if (logs.isEmpty)
+             const Padding(padding: EdgeInsets.all(24), child: Text("No face detection events recorded yet.", style: TextStyle(color: Colors.white24, fontSize: 13)))
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: logs.length,
+              separatorBuilder: (_, __) => Divider(color: Colors.white.withOpacity(0.05), height: 1),
+              itemBuilder: (context, index) {
+                final log = logs[index];
+                bool isGranted = log['access_status'] == 'granted';
+                return ListTile(
+                  leading: CircleAvatar(
+                    radius: 18,
+                    backgroundColor: isGranted ? Colors.greenAccent.withOpacity(0.1) : Colors.redAccent.withOpacity(0.1),
+                    child: Icon(isGranted ? Icons.check : Icons.close, size: 14, color: isGranted ? Colors.greenAccent : Colors.redAccent),
+                  ),
+                  title: Text(isGranted ? "Access Granted" : "Unknown Person", style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  subtitle: Text("${(log['confidence'] * 100).toStringAsFixed(1)}% Confidence", style: const TextStyle(fontSize: 11, color: Colors.white38)),
+                  trailing: log['snapshot'] != null 
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: Image.network(log['snapshot'], width: 40, height: 40, fit: BoxFit.cover, errorBuilder: (_,__,___) => const Icon(Icons.broken_image, size: 14)),
+                      )
+                    : null,
+                );
+              },
+            )
+        ],
+      ),
+    );
+  }
+
   Widget _buildAlertsCard() {
     final alerts = _deviceData!['alerts'] as List<dynamic>? ?? [];
 
     return Card(
       color: const Color(0xFF1E1E24),
-      margin: const EdgeInsets.only(bottom: 24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      margin: const EdgeInsets.only(bottom: 32),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: Colors.white.withOpacity(0.05))),
       child: ExpansionTile(
-        title: const Text("Alerts", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text("Security Alerts", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
         leading: const Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent),
         children: [
           alerts.isEmpty 
-            ? const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text("No recent alerts found for this device.", style: TextStyle(color: Colors.white54)),
-              )
+            ? const Padding(padding: EdgeInsets.all(24), child: Text("System healthy. No active alerts.", style: TextStyle(color: Colors.white24, fontSize: 13)))
             : ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: alerts.length,
-                separatorBuilder: (context, index) => const Divider(color: Colors.white10, height: 1),
+                separatorBuilder: (context, index) => Divider(color: Colors.white.withOpacity(0.05), height: 1),
                 itemBuilder: (context, index) {
                   final alert = alerts[index];
-                  Color severityColor = Colors.grey;
-                  if (alert['severity'] == 'critical') severityColor = Colors.redAccent;
-                  if (alert['severity'] == 'warning') severityColor = Colors.orangeAccent;
-                  if (alert['severity'] == 'success') severityColor = Colors.greenAccent;
-                  if (alert['severity'] == 'info') severityColor = Colors.blueAccent;
-                  
+                  Color color = alert['severity'] == 'critical' ? Colors.redAccent : Colors.orangeAccent;
                   return ListTile(
-                    leading: CircleAvatar(backgroundColor: severityColor.withOpacity(0.2), child: Icon(Icons.notifications, color: severityColor, size: 16)),
-                    title: Text(alert['title'] ?? 'Alert', style: const TextStyle(fontSize: 14)),
-                    subtitle: Text(alert['description'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.white54)),
+                    dense: true,
+                    leading: Icon(Icons.circle, size: 8, color: color),
+                    title: Text(alert['title'] ?? 'Alert', style: const TextStyle(fontSize: 13)),
+                    subtitle: Text(alert['description'] ?? '', style: const TextStyle(fontSize: 11, color: Colors.white38)),
                   );
                 },
               )
@@ -244,25 +315,26 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.initialDevice['name'] ?? "Device Details"),
+        title: Text(widget.initialDevice['name'] ?? "Device Details", style: const TextStyle(fontWeight: FontWeight.bold)),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _fetchData)
+          IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _fetchData)
         ],
       ),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
         : _deviceData == null 
-            ? const Center(child: Text("Error loading device details."))
+            ? const Center(child: Text("Connection error. Please try again."))
             : RefreshIndicator(
                 onRefresh: _fetchData,
                 color: const Color(0xFF00E5FF),
                 child: ListView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   children: [
                     _buildInfoCard(),
-                    _buildCameraCard("OUTSIDE", "Outside Cam", Icons.camera_outdoor, Colors.cyan),
-                    _buildCameraCard("INSIDE", "Inside Cam", Icons.camera_indoor, Colors.purpleAccent),
+                    _buildCameraCard("OUTSIDE", "Entry Point Camera", Icons.camera_outdoor_rounded, Colors.cyanAccent),
+                    _buildCameraCard("INSIDE", "Internal Security Cam", Icons.camera_indoor_rounded, Colors.purpleAccent),
                     _buildOpenDeviceCard(),
+                    _buildDoorLogsCard(),
                     _buildAlertsCard(),
                   ],
                 ),

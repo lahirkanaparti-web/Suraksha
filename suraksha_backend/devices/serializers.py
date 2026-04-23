@@ -49,9 +49,10 @@ class DeviceDetailSerializer(DeviceSerializer):
     managers = serializers.SerializerMethodField()
     cameras = serializers.SerializerMethodField()
     alerts = serializers.SerializerMethodField()
+    door_logs = serializers.SerializerMethodField()
 
     class Meta(DeviceSerializer.Meta):
-        fields = DeviceSerializer.Meta.fields + ['owner_info', 'managers', 'cameras', 'alerts']
+        fields = DeviceSerializer.Meta.fields + ['owner_info', 'managers', 'cameras', 'alerts', 'door_logs']
 
     def get_managers(self, obj):
         access_logs = obj.access_logs.filter(role='manager')
@@ -66,3 +67,8 @@ class DeviceDetailSerializer(DeviceSerializer):
     def get_alerts(self, obj):
         alerts = obj.alert_set.all().order_by('-created_at')[:20]  # Only return the recent 20 alerts
         return AlertSerializer(alerts, many=True).data
+
+    def get_door_logs(self, obj):
+        from events.serializers import AccessLogSerializer
+        logs = obj.door_access_logs.all().order_by('-timestamp')[:20]
+        return AccessLogSerializer(logs, many=True).data

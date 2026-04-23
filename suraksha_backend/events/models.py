@@ -26,3 +26,18 @@ class SafeEvent(models.Model):
 
     def __str__(self):
         return self.event_type
+
+class AccessLog(models.Model):
+    ACCESS_STATUS_CHOICES = [
+        ("granted", "Access Granted"),
+        ("denied", "Access Denied"),
+    ]
+
+    device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name="door_access_logs")
+    access_status = models.CharField(max_length=10, choices=ACCESS_STATUS_CHOICES)
+    confidence = models.FloatField(default=0.0)
+    snapshot = models.ImageField(upload_to="access_logs/", null=True, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.device.name} - {self.access_status} ({self.confidence})"

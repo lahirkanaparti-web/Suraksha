@@ -11,6 +11,7 @@ from alerts.models import Alert
 from users.models import UserFCMToken
 from core.utils import add_timestamp_to_image
 from .serializers import DeviceSerializer, DeviceDetailSerializer
+from events.models import AccessLog
 import random
 import io
 from django.core.files.base import ContentFile
@@ -46,7 +47,7 @@ class DeviceDetailView(generics.RetrieveAPIView):
 @permission_classes([AllowAny])
 def device_ping(request):
     """
-    Unified endpoint for ESP32: Heartbeat + Alert Ingestion.
+    Unified endpoint for ESP32: Heartbeat + Alert Ingestion + Access Logging.
     Expects X-Device-Token in headers.
     """
     token = request.headers.get('X-Device-Token')
@@ -59,17 +60,33 @@ def device_ping(request):
     device.last_seen = timezone.now()
     device.status = "online"
     device.save()
+
+    response_data = {'detail': 'Heartbeat received.'}
     
-    # Handle Image Upload (Alert)
+    # 1. Door Access Logic (Face Detection)
+    access_status = request.data.get('access_status')
+    if access_status:
+        confidence = request.data.get('confidence', 0.0)
+        snapshot = request.FILES.get('snapshot')
+        
+        AccessLog.objects.create(
+            device=device,
+            access_status=access_status,
+            confidence=float(confidence),
+            snapshot=snapshot
+        )
+        response_data['detail'] = f'Access {access_status} recorded.'
+    
+    # 2. Security Alert Logic (PIR Motion)
     if 'image' in request.FILES:
-        # 1. Anti-Spam (30s Cooldown)
+        # Anti-Spam (30s Cooldown)
         last_alert = Alert.objects.filter(device=device).order_by('-created_at').first()
         if last_alert and (timezone.now() - last_alert.created_at).total_seconds() < 30:
             return Response({'detail': 'Alert ignored due to cooldown.'}, status=status.HTTP_200_OK)
             
         uploaded_image = request.FILES['image']
         
-        # 2. Add Timestamp
+        # Add Timestamp
         processed_img = add_timestamp_to_image(uploaded_image)
         
         # Save processed image to a buffer
@@ -77,7 +94,7 @@ def device_ping(request):
         processed_img.save(buffer, format='JPEG', quality=85)
         image_content = ContentFile(buffer.getvalue(), name=f"alert_{device.device_id}_{int(timezone.now().timestamp())}.jpg")
         
-        # 3. Create Alert
+        # Create Alert
         alert = Alert.objects.create(
             device=device,
             title="Motion Detected",
@@ -86,12 +103,13 @@ def device_ping(request):
             snapshot=image_content
         )
         
-        # 4. Trigger Targeted FCM Notifications
+        # Trigger Targeted FCM Notifications
         send_targeted_notifications(device, alert)
         
-        return Response({'detail': 'Alert recorded and notifications sent.'}, status=status.HTTP_201_CREATED)
+        response_data['detail'] = 'Alert recorded and notifications sent.'
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
-    return Response({'detail': 'Heartbeat received.'}, status=status.HTTP_200_OK)
+    return Response(response_data, status=status.HTTP_200_OK)
 
 def send_targeted_notifications(device, alert):
     """
@@ -140,7 +158,7 @@ def request_unlock(request, pk):
             role = access.role
         except DeviceAccess.DoesNotExist:
             pass
-
+ 
     if role == 'manager' or role == 'viewer':
         return Response({'detail': 'Your role does not permit unlocking this device. Only Admins can unlock.'}, status=status.HTTP_403_FORBIDDEN)
         

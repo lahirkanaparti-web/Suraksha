@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 import '../../widgets/app_drawer.dart';
 import '../../providers/app_state_provider.dart';
 import '../devices/device_detail_screen.dart';
+import '../alerts/alerts_screen.dart';
+import '../alerts/access_logs_screen.dart';
+import '../devices/device_list_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -11,63 +14,100 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
   @override
   void initState() {
     super.initState();
-    // Fetch real data from Django when dashboard initializes
+    // Pulse animation for the security shield
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+    
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.2).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AppStateProvider>().syncBackend();
     });
   }
 
   @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Watch state
     final state = context.watch<AppStateProvider>();
     final activeDevices = state.devices;
-    final recentAlerts = state.alerts.take(3).toList();
+    
+    // Merge Alerts and AccessLogs into a single Unified Feed
+    final List<Map<String, dynamic>> combinedActivity = [
+      ...state.alerts.map((a) => {...a, 'type': 'alert'}),
+      ...state.accessLogs.map((l) => {...l, 'type': 'access'}),
+    ];
+    
+    // Sort by timestamp (descending)
+    combinedActivity.sort((a, b) {
+      DateTime timeA = DateTime.tryParse(a['time'] ?? a['timestamp'] ?? "") ?? DateTime(2000);
+      DateTime timeB = DateTime.tryParse(b['time'] ?? b['timestamp'] ?? "") ?? DateTime(2000);
+      return timeB.compareTo(timeA);
+    });
+
+    final recentActivity = combinedActivity.take(5).toList();
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Home", style: TextStyle(fontWeight: FontWeight.w600)),
+        title: const Text("Suraksha Home", style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_active_outlined),
-            onPressed: () {
-              // Force manual refresh
-              context.read<AppStateProvider>().syncBackend();
-            },
-            tooltip: 'Refresh Status',
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: () => context.read<AppStateProvider>().syncBackend(),
           ),
         ],
       ),
       drawer: const AppDrawer(),
       body: state.isLoading 
         ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
-        : SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildSystemStatusCard(context),
-                const SizedBox(height: 32),
-                const Text(
-                  "Locker Devices",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                _buildDevicesHorizontalList(activeDevices),
-                const SizedBox(height: 32),
-                const Text(
-                  "Recent Events",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                _buildRecentEventsSnippet(recentAlerts),
-              ],
+        : RefreshIndicator(
+            onRefresh: () => state.syncBackend(),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSystemStatusCard(context),
+                  const SizedBox(height: 24),
+                  _buildQuickActions(context),
+                  const SizedBox(height: 32),
+                  _headerRow("Active Lockers", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DeviceListScreen()))),
+                  const SizedBox(height: 16),
+                  _buildDevicesHorizontalList(activeDevices),
+                  const SizedBox(height: 32),
+                  _headerRow("Recent Activity", () {}), // Could link to a combined feed screen later
+                  const SizedBox(height: 16),
+                  _buildUnifiedActivityFeed(recentActivity),
+                  const SizedBox(height: 40),
+                ],
+              ),
             ),
           ),
+    );
+  }
+
+  Widget _headerRow(String title, VoidCallback onSeeAll) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        TextButton(onPressed: onSeeAll, child: const Text("See All", style: TextStyle(color: Color(0xFF00E5FF)))),
+      ],
     );
   }
 
@@ -75,50 +115,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Theme.of(context).primaryColor.withOpacity(0.1),
-        border: Border.all(color: Theme.of(context).primaryColor.withOpacity(0.3)),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Theme.of(context).primaryColor.withOpacity(0.05),
-            blurRadius: 20,
-            spreadRadius: 5,
-          )
-        ],
+        gradient: LinearGradient(
+          colors: [const Color(0xFF00E5FF).withOpacity(0.15), const Color(0xFF00E5FF).withOpacity(0.05)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.3)),
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Theme.of(context).primaryColor.withOpacity(0.2),
-            ),
-            child: Icon(
-              Icons.shield_outlined,
-              color: Theme.of(context).primaryColor,
-              size: 40,
+          ScaleTransition(
+            scale: _pulseAnimation,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF00E5FF).withOpacity(0.2),
+                boxShadow: [
+                  BoxShadow(color: const Color(0xFF00E5FF).withOpacity(0.3), blurRadius: 15, spreadRadius: 2)
+                ],
+              ),
+              child: const Icon(Icons.shield_rounded, color: Color(0xFF00E5FF), size: 36),
             ),
           ),
           const SizedBox(width: 20),
-          Column(
+          const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                "SYSTEM SECURE",
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              const SizedBox(height: 4),
               Text(
-                "All lock systems nominal",
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.white.withOpacity(0.6),
-                ),
+                "SYSTEM SECURE",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.2),
+              ),
+              SizedBox(height: 4),
+              Text(
+                "Integrity Monitoring Active",
+                style: TextStyle(fontSize: 13, color: Colors.white54),
               ),
             ],
           )
@@ -127,68 +159,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget _buildQuickActions(BuildContext context) {
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 2,
+      childAspectRatio: 2.2,
+      crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
+      children: [
+        _quickActionItem(context, Icons.history_rounded, "Door Logs", Colors.blueAccent, () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const AccessLogsScreen()));
+        }),
+        _quickActionItem(context, Icons.notifications_none_rounded, "Alerts", Colors.orangeAccent, () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const AlertsScreen()));
+        }),
+        _quickActionItem(context, Icons.lock_open_rounded, "Override", Colors.greenAccent, () {
+           // Direct to device selection or last active device
+        }),
+        _quickActionItem(context, Icons.settings_outlined, "Config", Colors.white30, () {}),
+      ],
+    );
+  }
+
+  Widget _quickActionItem(BuildContext context, IconData icon, String label, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E24),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.05)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(width: 12),
+            Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildDevicesHorizontalList(List<Map<String, dynamic>> devices) {
-    if (devices.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 20),
-        child: Text("No devices active...", style: TextStyle(color: Colors.white60)),
-      );
-    }
+    if (devices.isEmpty) return const Text("No active lockers.", style: TextStyle(color: Colors.white30));
     
     return SizedBox(
-      height: 120,
+      height: 110,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: devices.length,
         itemBuilder: (context, index) {
           final device = devices[index];
-          final isOnline = device['status'] == 'Online';
+          final isOnline = device['status'] == 'online';
           
           return GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => DeviceDetailScreen(initialDevice: device),
-                ),
-              );
-            },
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DeviceDetailScreen(initialDevice: device))),
             child: Container(
-              width: 150,
+              width: 140,
               margin: const EdgeInsets.only(right: 16),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: const Color(0xFF1E1E24),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: isOnline ? Theme.of(context).primaryColor.withOpacity(0.3) : Colors.redAccent.withOpacity(0.3)),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: isOnline ? const Color(0xFF00E5FF).withOpacity(0.2) : Colors.redAccent.withOpacity(0.2)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.videocam, 
-                    color: isOnline ? Theme.of(context).primaryColor : Colors.redAccent,
-                    size: 28,
-                  ),
+                  Icon(Icons.door_front_door_rounded, color: isOnline ? const Color(0xFF00E5FF) : Colors.redAccent, size: 24),
                   const Spacer(),
-                  Text(
-                    device['name'],
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(Icons.circle, color: isOnline ? Colors.greenAccent : Colors.redAccent, size: 10),
-                      const SizedBox(width: 6),
-                      Text(
-                        device['status'],
-                        style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.6)),
-                      )
-                    ],
-                  ),
+                  Text(device['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), overflow: TextOverflow.ellipsis),
+                  Text(isOnline ? "Online" : "Offline", style: TextStyle(fontSize: 11, color: isOnline ? Colors.greenAccent : Colors.redAccent)),
                 ],
               ),
             ),
@@ -198,40 +243,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildRecentEventsSnippet(List<Map<String, dynamic>> alerts) {
-    if (alerts.isEmpty) {
-      return const Text("No recent events...", style: TextStyle(color: Colors.white60));
-    }
+  Widget _buildUnifiedActivityFeed(List<Map<String, dynamic>> activity) {
+    if (activity.isEmpty) return const Text("No recent activity.", style: TextStyle(color: Colors.white30));
+    
     return Column(
-      children: alerts.map((alert) {
-        // Parse time to local string or fallback
-        String displayTime = alert['time'].toString();
-        if (displayTime.length > 10) {
-          try {
-             DateTime dt = DateTime.parse(displayTime).toLocal();
-             displayTime = "${dt.hour}:${dt.minute.toString().padLeft(2, '0')}";
-          } catch(e) {}
-        }
+      children: activity.map((item) {
+        bool isAlert = item['type'] == 'alert';
+        IconData icon = isAlert ? Icons.warning_amber_rounded : Icons.person_search_rounded;
+        Color color = isAlert ? Colors.orangeAccent : Colors.blueAccent;
+        String title = item['title'] ?? (item['access_status'] == 'granted' ? "Face Recognized" : "Unknown Person");
+        String subtitle = isAlert ? (item['locker'] ?? "Motion Trigger") : (item['device_name'] ?? "Door Access");
         
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
             color: const Color(0xFF1E1E24),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: alert['severity'] == 'critical' 
-                ? Colors.redAccent.withOpacity(0.2) 
-                : Colors.white10,
-              child: Icon(
-                alert['severity'] == 'critical' ? Icons.gpp_bad : Icons.lock_outline, 
-                color: alert['severity'] == 'critical' ? Colors.redAccent : Colors.white70
-              ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+              child: Icon(icon, color: color, size: 22),
             ),
-            title: Text(alert['title']),
-            subtitle: Text("${alert['locker']} • $displayTime", style: TextStyle(color: Colors.white.withOpacity(0.5))),
-            trailing: const Icon(Icons.chevron_right, color: Colors.white30),
+            title: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.white38)),
+            trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.white24),
+            onTap: () {
+               // Future: Navigate to specific event detail or log list
+            },
           ),
         );
       }).toList(),

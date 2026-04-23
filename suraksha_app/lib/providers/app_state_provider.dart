@@ -6,10 +6,12 @@ import '../services/api_service.dart';
 class AppStateProvider extends ChangeNotifier {
   List<Map<String, dynamic>> _devices = [];
   List<Map<String, dynamic>> _alerts = [];
+  List<Map<String, dynamic>> _accessLogs = [];
   bool isLoading = false;
 
   List<Map<String, dynamic>> get devices => _devices;
   List<Map<String, dynamic>> get alerts => _alerts;
+  List<Map<String, dynamic>> get accessLogs => _accessLogs;
 
   // Sync data from Django Backend
   Future<void> syncBackend() async {
@@ -36,10 +38,12 @@ class AppStateProvider extends ChangeNotifier {
 
       final fetchedDevices = await ApiService.fetchDevices();
       final fetchedAlerts = await ApiService.fetchAlerts();
+      final fetchedAccessLogs = await ApiService.fetchAccessLogs();
 
       // Convert dynamic list to Map<String, dynamic>
       _devices = fetchedDevices.map((d) => Map<String, dynamic>.from(d)).toList();
       _alerts = fetchedAlerts.map((a) => Map<String, dynamic>.from(a)).toList();
+      _accessLogs = fetchedAccessLogs.map((l) => Map<String, dynamic>.from(l)).toList();
     } catch (e) {
       debugPrint("Error syncing backend: $e");
     } finally {

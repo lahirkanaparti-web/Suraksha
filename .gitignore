@@ -23,6 +23,7 @@ wheels/
 .venv/
 venv/
 ENV/
+venv310/
 
 # Django
 suraksha_backend/db.sqlite3

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../screens/dashboard/dashboard_screen.dart';
 import '../screens/alerts/alerts_screen.dart';
+import '../screens/alerts/access_logs_screen.dart';
 import '../screens/devices/device_list_screen.dart';
 import '../services/api_service.dart';
 import '../main.dart';
@@ -12,64 +13,74 @@ class AppDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     String? email = FirebaseAuth.instance.currentUser?.email;
+    final primaryColor = const Color(0xFF00E5FF);
 
     return Drawer(
-      backgroundColor: const Color(0xFF1E1E24), // Surface color
+      backgroundColor: const Color(0xFF0A0A0E), // Match deep background
       child: Column(
         children: [
           UserAccountsDrawerHeader(
-            decoration: const BoxDecoration(
-              color: Color(0xFF0A0A0E), // Background color
+            decoration: BoxDecoration(
+              color: const Color(0xFF14141B),
+              border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05))),
             ),
             accountName: const Text(
-              "Administrator",
-              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+              "SURAKSHA ADMIN",
+              style: TextStyle(fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1.5),
             ),
             accountEmail: Text(
               email ?? "admin@suraksha.sys",
-              style: TextStyle(color: Colors.white.withOpacity(0.7)),
+              style: TextStyle(color: primaryColor.withOpacity(0.7), fontWeight: FontWeight.w600),
             ),
-            currentAccountPicture: CircleAvatar(
-              backgroundColor: Theme.of(context).primaryColor.withOpacity(0.2),
-              child: Icon(
-                Icons.admin_panel_settings,
-                color: Theme.of(context).primaryColor,
-                size: 32,
+            currentAccountPicture: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: primaryColor.withOpacity(0.3), width: 2),
+              ),
+              child: CircleAvatar(
+                backgroundColor: primaryColor.withOpacity(0.1),
+                child: Icon(Icons.shield_rounded, color: primaryColor, size: 36),
               ),
             ),
           ),
+          const SizedBox(height: 12),
           _DrawerItem(
-            icon: Icons.dashboard_outlined,
-            title: "Dashboard",
+            icon: Icons.grid_view_rounded,
+            title: "Command Center",
             onTap: () {
               Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
             },
           ),
           _DrawerItem(
-            icon: Icons.warning_amber_rounded,
-            title: "Alerts Log",
+            icon: Icons.notifications_active_outlined,
+            title: "Security Alerts",
             onTap: () {
               Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AlertsScreen()));
             },
           ),
           _DrawerItem(
-            icon: Icons.router_outlined,
-            title: "Locker Cameras",
+            icon: Icons.history_edu_rounded,
+            title: "Access History",
+            onTap: () {
+              Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AccessLogsScreen()));
+            },
+          ),
+          _DrawerItem(
+            icon: Icons.videocam_outlined,
+            title: "Active Lockers",
             onTap: () {
               Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DeviceListScreen()));
             },
           ),
           const Spacer(),
-          const Divider(color: Colors.white12),
+          const Divider(color: Colors.white10),
           _DrawerItem(
-            icon: Icons.logout,
-            title: "Sign Out",
+            icon: Icons.power_settings_new_rounded,
+            title: "Terminate Session",
             isDestructive: true,
             onTap: () async {
               await FirebaseAuth.instance.signOut();
-              ApiService.logout(); // Clear internal Django Auth Token natively
-              
-              // Evict the app framework and aggressively restart the navigation route from AuthGate
+              ApiService.logout(); 
               if (context.mounted) {
                 Navigator.pushAndRemoveUntil(
                   context,
@@ -101,15 +112,17 @@ class _DrawerItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isDestructive ? Colors.redAccent : Colors.white.withOpacity(0.8);
+    final color = isDestructive ? Colors.redAccent.withOpacity(0.8) : Colors.white.withOpacity(0.7);
     return ListTile(
-      leading: Icon(icon, color: color),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+      leading: Icon(icon, color: color, size: 22),
       title: Text(
         title,
         style: TextStyle(
           color: color,
-          fontSize: 16,
-          fontWeight: isDestructive ? FontWeight.bold : FontWeight.w500,
+          fontSize: 14,
+          fontWeight: isDestructive ? FontWeight.bold : FontWeight.w600,
+          letterSpacing: 0.5,
         ),
       ),
       onTap: onTap,
