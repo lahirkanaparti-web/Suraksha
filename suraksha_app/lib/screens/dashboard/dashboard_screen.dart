@@ -90,7 +90,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                   const SizedBox(height: 16),
                   _buildDevicesHorizontalList(activeDevices),
                   const SizedBox(height: 32),
-                  _headerRow("Recent Activity", () {}), // Could link to a combined feed screen later
+                  _headerRow("Recent Activity", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccessLogsScreen()))),
                   const SizedBox(height: 16),
                   _buildUnifiedActivityFeed(recentActivity),
                   const SizedBox(height: 40),
@@ -175,9 +175,11 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           Navigator.push(context, MaterialPageRoute(builder: (_) => const AlertsScreen()));
         }),
         _quickActionItem(context, Icons.lock_open_rounded, "Override", Colors.greenAccent, () {
-           // Direct to device selection or last active device
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const DeviceListScreen()));
         }),
-        _quickActionItem(context, Icons.settings_outlined, "Config", Colors.white30, () {}),
+        _quickActionItem(context, Icons.settings_outlined, "Config", Colors.white30, () {
+          Scaffold.of(context).openDrawer();
+        }),
       ],
     );
   }
@@ -271,7 +273,11 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.white38)),
             trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.white24),
             onTap: () {
-               // Future: Navigate to specific event detail or log list
+              if (isAlert) {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const AlertsScreen()));
+              } else {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const AccessLogsScreen()));
+              }
             },
           ),
         );
